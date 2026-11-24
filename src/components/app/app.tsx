@@ -1,41 +1,59 @@
-import { AppHeader } from '@components';
-import { ConstructorPage } from '@pages';
+import {
+  AppHeader,
+  IngredientDetails,
+  Modal,
+  OrderInfo,
+  ProtectedRoute,
+} from '@components';
+import {
+  ConstructorPage,
+  Feed,
+  ForgotPassword,
+  Login,
+  NotFound404,
+  Profile,
+  ProfileOrders,
+  Register,
+  ResetPassword,
+} from '@pages';
+import { getIngredients, getIngredientsSelector, checkUserAuth } from '@slices';
 import { Preloader } from '@ui';
-import { Routes, Route } from 'react-router-dom';
+import { type JSX, type ReactElement, useEffect } from 'react';
+import {
+  createBrowserRouter,
+  Outlet,
+  RouterProvider,
+  useLocation,
+  useMatch,
+  useNavigate,
+  useRoutes,
+} from 'react-router-dom';
+
+import { useDispatch, useSelector } from '@services/store';
 
 import type { AppContentProps } from './type';
-import type { TIngredient } from '@utils-types';
 
 import '../../index.css';
 
 import styles from './app.module.css';
 
-const App = (): React.JSX.Element => {
-  const ingredients: TIngredient[] = [];
-  const isIngredientsLoading = false;
-  const ingredientsError = null;
+const AppLayout = (): JSX.Element => {
+  const dispatch = useDispatch();
+  useEffect(() => {
+    void dispatch(getIngredients());
+    void dispatch(checkUserAuth());
+  }, [dispatch]);
+  const { ingredients, loading, error } = useSelector(getIngredientsSelector);
 
   return (
     <div className={styles.app}>
       <AppHeader />
-      <AppContent
-        ingredients={ingredients}
-        isLoading={isIngredientsLoading}
-        error={ingredientsError}
-      />
+      <AppContent ingredients={ingredients} isLoading={loading} error={error} />
     </div>
   );
 };
 
-export default App;
-
-/* Маршруты показываются только когда ингредиенты загружены: без них не
-   отрисовать ни конструктор, ни состав заказа. */
-const AppContent = ({
-  ingredients,
-  isLoading,
-  error,
-}: AppContentProps): React.JSX.Element => {
+const AppContent = ({ ingredients, isLoading, error }: AppContentProps): JSX.Element => {
   if (isLoading) {
     return <Preloader />;
   }
@@ -55,15 +73,163 @@ const AppContent = ({
     );
   }
 
-  return <RouteComponent />;
+  return <Outlet />;
 };
 
-const RouteComponent = (): React.JSX.Element => {
+const RoutesWithModals = (): JSX.Element => {
+  const navigate = useNavigate();
+
+  const location = useLocation();
+  const state = location.state as { background?: Location } | null;
+  const background = state?.background;
+
+  const feedOrderMatch = useMatch('/feed/:number');
+  const profileOrderMatch = useMatch('/profile/orders/:number');
+  const orderNumber = (feedOrderMatch ?? profileOrderMatch)?.params.number;
+
+  const pages = useRoutes(
+    [
+      { index: true, element: <ConstructorPage /> },
+      { path: 'feed', element: <Feed /> },
+      {
+        path: 'feed/:number',
+        element: (
+          <div className={styles.detailPageWrap}>
+            <p className={`text text_type_main-large ${styles.detailHeader}`}>
+              #{orderNumber?.padStart(6, '0')}
+            </p>
+            <OrderInfo />
+          </div>
+        ),
+      },
+      {
+        path: 'ingredients/:id',
+        element: (
+          <div className={styles.detailPageWrap}>
+            <p className={`text text_type_main-large ${styles.detailHeader}`}>
+              Детали ингредиента
+            </p>
+            <IngredientDetails />
+          </div>
+        ),
+      },
+      {
+        path: 'profile/orders',
+        element: (
+          <ProtectedRoute>
+            <ProfileOrders />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/profile/orders/:number',
+        element: (
+          <ProtectedRoute>
+            <div className={styles.detailPageWrap}>
+              <p className={`text text_type_main-large ${styles.detailHeader}`}>
+                #{orderNumber?.padStart(6, '0')}
+              </p>
+              <OrderInfo />
+            </div>
+          </ProtectedRoute>
+        ),
+      },
+      { path: '*', element: <NotFound404 /> },
+    ],
+    background ?? location
+  );
+
+  const handleClose = (): void => {
+    void navigate(-1);
+  };
+
+  const ModalRoutes = (): ReactElement | null =>
+    useRoutes([
+      {
+        path: 'feed/:number',
+        element: (
+          <Modal title={`#${orderNumber?.padStart(6, '0')}`} onClose={handleClose}>
+            <OrderInfo />
+          </Modal>
+        ),
+      },
+      {
+        path: 'ingredients/:id',
+        element: (
+          <Modal title={'Детали ингредиента'} onClose={handleClose}>
+            <IngredientDetails />
+          </Modal>
+        ),
+      },
+      {
+        path: '/profile/orders/:number',
+        element: (
+          <ProtectedRoute>
+            <Modal title={`#${orderNumber?.padStart(6, '0')}`} onClose={handleClose}>
+              <OrderInfo />
+            </Modal>
+          </ProtectedRoute>
+        ),
+      },
+    ]);
+
   return (
     <>
-      <Routes>
-        <Route path="/" element={<ConstructorPage />} />
-      </Routes>
+      {pages}
+      {background && <ModalRoutes />}
     </>
   );
 };
+
+const router = createBrowserRouter([
+  {
+    element: <AppLayout />,
+    children: [
+      { path: '/*', element: <RoutesWithModals /> },
+      {
+        path: '/login',
+        element: (
+          <ProtectedRoute onlyUnAuth>
+            <Login />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/register',
+        element: (
+          <ProtectedRoute onlyUnAuth>
+            <Register />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/forgot-password',
+        element: (
+          <ProtectedRoute>
+            <ForgotPassword />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/reset-password',
+        element: (
+          <ProtectedRoute>
+            <ResetPassword />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: '/profile',
+        element: (
+          <ProtectedRoute>
+            <Profile />
+          </ProtectedRoute>
+        ),
+      },
+    ],
+  },
+]);
+
+export default function App(): JSX.Element {
+  return <RouterProvider router={router} />;
+}
