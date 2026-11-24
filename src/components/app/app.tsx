@@ -91,8 +91,28 @@ const RoutesWithModals = (): JSX.Element => {
     [
       { index: true, element: <ConstructorPage /> },
       { path: 'feed', element: <Feed /> },
-      { path: 'feed/:number', element: <OrderInfo /> },
-      { path: 'ingredients/:id', element: <IngredientDetails /> },
+      {
+        path: 'feed/:number',
+        element: (
+          <div className={styles.detailPageWrap}>
+            <p className={`text text_type_main-large ${styles.detailHeader}`}>
+              #{orderNumber?.padStart(6, '0')}
+            </p>
+            <OrderInfo />
+          </div>
+        ),
+      },
+      {
+        path: 'ingredients/:id',
+        element: (
+          <div className={styles.detailPageWrap}>
+            <p className={`text text_type_main-large ${styles.detailHeader}`}>
+              Детали ингредиента
+            </p>
+            <IngredientDetails />
+          </div>
+        ),
+      },
       {
         path: 'profile/orders',
         element: (
@@ -105,7 +125,12 @@ const RoutesWithModals = (): JSX.Element => {
         path: '/profile/orders/:number',
         element: (
           <ProtectedRoute>
-            <OrderInfo />
+            <div className={styles.detailPageWrap}>
+              <p className={`text text_type_main-large ${styles.detailHeader}`}>
+                #{orderNumber?.padStart(6, '0')}
+              </p>
+              <OrderInfo />
+            </div>
           </ProtectedRoute>
         ),
       },
